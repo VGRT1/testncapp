@@ -1,0 +1,513 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>VGRT Notarial Vault · Signature Pad & Microprint Security</title>
+    <!-- QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <!-- html2pdf + html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Signature Pad -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; }
+        :root {
+            --legal-navy: #002664;
+            --gold-accent: #b49450;
+            --vgrt-red: #b22234;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: #3e3e40;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #controls {
+            width: 540px;
+            background: white;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 1.5rem;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .vgrt-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 0.5rem; }
+        .vgrt-logo { background: var(--vgrt-red); color: white; font-weight: 800; font-size: 1.4rem; padding: 4px 16px; border-radius: 50px; letter-spacing: 1px; }
+        #controls h2 { color: var(--legal-navy); font-size: 1.3rem; border-bottom: 2px solid var(--gold-accent); padding-bottom: 0.3rem; margin: 0; }
+        h3 { font-size: 1rem; color: var(--legal-navy); margin: 0.8rem 0 0.4rem; border-left: 4px solid var(--gold-accent); padding-left: 0.6rem; }
+        .border-style-panel { background: #f0f2f8; border-radius: 12px; padding: 0.8rem; margin-bottom: 8px; }
+        .border-selector { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 4px; }
+        .border-selector label { display: inline-flex; align-items: center; gap: 6px; background: white; padding: 4px 12px; border-radius: 40px; border: 1px solid #ccc; cursor: pointer; }
+        .border-selector input { width: auto; margin: 0; }
+        .collapsible-section { background: #f8f9fc; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e0e4e8; }
+        .collapsible-header { background: #eef2f7; padding: 8px 12px; cursor: pointer; font-weight: 600; color: var(--legal-navy); display: flex; justify-content: space-between; }
+        .collapsible-content { padding: 12px; display: none; border-top: 1px solid #e0e4e8; }
+        .collapsible-content.show { display: block; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .input-group { margin-bottom: 0.5rem; }
+        label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #2c3e50; }
+        input, select { width: 100%; padding: 0.5rem 0.6rem; border: 1px solid #b0b0b0; border-radius: 6px; font-size: 0.9rem; }
+        .btn { width: 100%; padding: 0.7rem; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; background: var(--legal-navy); color: white; margin-top: 6px; }
+        .btn-success { background: #1d6f2c; }
+        .btn-outline { background: white; color: var(--legal-navy); border: 1px solid var(--legal-navy); }
+        .btn-small { padding: 0.3rem 0.6rem; font-size: 0.75rem; width: auto; margin: 5px 0; }
+        .button-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .scale-row { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+        #scaleRange { width: 180px; }
+        .person-block { background: #f3f5f9; border-radius: 8px; padding: 10px; margin-bottom: 15px; border-left: 3px solid var(--gold-accent); }
+        .remove-btn { background: #b22222; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.7rem; float: right; cursor: pointer; }
+        .witness-checkbox { margin: 10px 0 5px; display: flex; align-items: center; gap: 8px; }
+        .history-list { max-height: 180px; overflow-y: auto; border: 1px solid #ccc; border-radius: 6px; padding: 5px; background: #f9f9f9; }
+        .history-item { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px dashed #aaa; font-size: 0.8rem; }
+        /* Signature Pad Styles - FIXED */
+        .sig-pad-container { background: #f8f9fc; border-radius: 12px; padding: 10px; margin: 10px 0; border: 1px solid #e0e4e8; }
+        #signatureCanvas { width: 100%; height: 140px; background: white; border: 1px solid #ccc; border-radius: 8px; touch-action: none; display: block; }
+        .sig-buttons { display: flex; gap: 10px; margin-top: 8px; }
+        /* Preview Area */
+        #preview-area { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 30px 15px; overflow: auto; background: #6b6b6d; }
+        .preview-wrapper { transform-origin: top center; transition: transform 0.1s; box-shadow: 0 12px 35px rgba(0,0,0,0.5); }
+        .certificate { width: 210mm; min-height: 297mm; background: #fff; padding: 10mm; position: relative; font-family: 'Times New Roman', Times, serif; line-height: 1.45; }
+        .certificate.outer-border-single { border: 3px solid var(--legal-navy); }
+        .certificate.outer-border-double { border: 5px double var(--legal-navy); }
+        .certificate.outer-border-triple { border: 6px solid var(--legal-navy); outline: 2px solid var(--gold-accent); outline-offset: -2px; }
+        .inner-border { border: 1px solid var(--gold-accent); padding: 8mm; background: white; position: relative; }
+        .cert-header-logo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--gold-accent); padding-bottom: 6px; }
+        .cert-vgrt { background: var(--vgrt-red); color: white; font-weight: 800; font-size: 1.2rem; padding: 2px 12px; border-radius: 40px; }
+        .header { text-align: center; color: var(--legal-navy); margin-bottom: 20px; }
+        .header h1 { font-size: 28pt; letter-spacing: 1.5px; text-decoration: underline; margin-bottom: 4px; }
+        .section { margin: 18px 0; text-align: justify; font-size: 12.5pt; }
+        .field-label { font-weight: 700; color: var(--legal-navy); }
+        .register-table { width: 100%; border-collapse: collapse; margin: 25px 0 15px; font-size: 11pt; }
+        .register-table td { border: 1px solid #8a7f6d; padding: 8px 4px; text-align: center; background-color: #fcf9f2; }
+        .notary-details { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 30px 0 15px; }
+        #qrcode canvas { width: 90px; height: 90px; border: 1px solid #aaa; padding: 5px; background: white; border-radius: 8px; }
+        .signature-area { text-align: center; flex: 1; border-top: 1px dashed var(--legal-navy); padding-top: 8px; }
+        .signature-image, .seal-image { max-width: 130px; max-height: 55px; object-fit: contain; }
+        .seal-box { width: 115px; height: 115px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-weight: bold; font-size: 8pt; background: #fffbf0; transition: transform 0.2s; transform: rotate(var(--seal-rotate, 0deg)); }
+        .seal-box.royal { background: radial-gradient(circle at 30% 35%, #f8f0d5, #e6d7b0); border: 3px double #b49450; color: #002664; }
+        .seal-box.modern { background: #f0f2f8; border: 3px solid #2c3e50; color: #1e466e; box-shadow: 0 0 0 2px #b49450; }
+        .seal-classic { background: #fff0d0; border: 2px solid #8b5a2b; color: #4a2c12; box-shadow: 0 0 0 3px #c99e6f; }
+        .commission-expiry-row { text-align: center; margin-top: 10px; font-size: 9pt; border-top: 1px solid #e0d6c0; padding-top: 8px; }
+        .microprint-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 5; border: 12px solid transparent; }
+        .microprint-active .microprint-overlay { background: repeating-linear-gradient(45deg, rgba(0,38,100,0.08) 0px, rgba(0,38,100,0.08) 2px, transparent 2px, transparent 6px); }
+        .microprint-line { font-size: 3.5pt; text-align: center; color: #4a4a4a; border-top: 0.2px solid #ccc; margin-top: 8px; padding-top: 4px; font-family: 'Courier New', monospace; }
+        .timestamp-stamp { font-family: monospace; background: #f4f1e1; padding: 2px 6px; border-radius: 12px; font-size: 8pt; display: inline-block; border: 0.5px solid #b49450; }
+    </style>
+</head>
+<body>
+<div id="controls">
+    <div class="vgrt-brand">
+        <div class="vgrt-logo">⚖️ VGRT</div>
+        <h2>Notarial Master · Signature Pad + Microprint</h2>
+    </div>
+
+    <div class="border-style-panel">
+        <label style="font-weight:bold;">🖼️ OUTER BORDER STYLE</label>
+        <div class="border-selector">
+            <label><input type="radio" name="borderStyle" value="single" checked> 🔲 Single Line</label>
+            <label><input type="radio" name="borderStyle" value="double"> 🟫 Double Line</label>
+            <label><input type="radio" name="borderStyle" value="triple"> 🧬 Triple Line</label>
+        </div>
+    </div>
+
+    <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleNotaryDetails()">⚖️ Notary Credentials <span>▼</span></div>
+        <div class="collapsible-content" id="notaryDetailsContent">
+            <div class="grid-2">
+                <div class="input-group"><label>Notary name</label><input type="text" id="inNotaryName" value="N RAJA"></div>
+                <div class="input-group"><label>Practice place</label><input type="text" id="inPlace" value="CHENNAI, TAMIL NADU, INDIA"></div>
+            </div>
+            <div class="grid-2">
+                <div class="input-group"><label>Regn No.</label><input type="text" id="inRegNo" value="11206"></div>
+                <div class="input-group"><label>Commission expiry</label><input type="date" id="inExpiry" value="2029-12-31"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleSealPanel()">🕹️ Round Seal Style & Icon <span>▼</span></div>
+        <div id="sealPanelContent" class="collapsible-content">
+            <div class="grid-2">
+                <select id="sealTheme">
+                    <option value="royal">Royal Gold</option>
+                    <option value="modern">Modern Blue Steel</option>
+                    <option value="classic">Classic Vintage</option>
+                </select>
+                <div><label>Rotation</label><input type="range" id="sealRotate" min="-12" max="12" value="3" step="1"> <span id="rotVal">3°</span></div>
+            </div>
+            <div class="grid-2">
+                <select id="sealIcon">
+                    <option value="⚖️">⚖️ Balance</option>
+                    <option value="🖋️">🖋️ Quill</option>
+                    <option value="📜">📜 Scroll</option>
+                    <option value="🔏">🔏 Lock</option>
+                    <option value="⭐">⭐ Star</option>
+                    <option value="none">None</option>
+                </select>
+                <div><label>Include Name/RegNo</label><input type="checkbox" id="sealIncludeText" checked></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleSecurityPanel()">🔒 Security Features <span>▼</span></div>
+        <div id="securityPanelContent" class="collapsible-content">
+            <select id="microprintStyle">
+                <option value="none">None</option>
+                <option value="classic" selected>Classic Microprint</option>
+                <option value="legal">Legal Grade Enhanced</option>
+            </select>
+            <div class="witness-checkbox"><input type="checkbox" id="includeTimestamp" checked> <label>⏱️ Include Timestamp</label></div>
+        </div>
+    </div>
+
+    <!-- SIGNATURE PAD - FIXED & WORKING -->
+    <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleSigPad()">✍️ Signature Pad (Draw) <span>▼</span></div>
+        <div id="sigPadContent" class="collapsible-content">
+            <div class="sig-pad-container">
+                <canvas id="signatureCanvas" width="500" height="140" style="width:100%; height:140px; border:1px solid #ccc; border-radius:8px; background:white;"></canvas>
+                <div class="sig-buttons">
+                    <button class="btn-small btn-outline" id="clearSigPadBtn">Clear Pad</button>
+                    <button class="btn-small btn-outline" id="saveSigPadBtn">Save to Certificate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3>👥 Deponents <button class="btn-small" id="addDeponentBtn">+ Add</button></h3>
+    <div id="deponentsContainer"></div>
+
+    <div class="witness-checkbox"><input type="checkbox" id="includeWitness" checked> <label>👁️ Include witness(es)</label></div>
+    <div id="witnessSection"><h3>Witnesses <button class="btn-small" id="addWitnessBtn">+ Add</button></h3><div id="witnessesContainer"></div></div>
+
+    <h3>📄 Document details</h3>
+    <input type="text" id="inDoc" value="Affidavit for Name Change">
+    <div class="grid-2">
+        <div><label>📅 Certificate Date</label><input type="date" id="inDate" value="2026-03-20"></div>
+        <div><label>Reference ID</label><input type="text" id="inRefId" value=""></div>
+    </div>
+
+    <h3>💰 Register & fees</h3>
+    <div class="grid-2">
+        <input type="number" id="inStamp" value="100" placeholder="Stamp ₹">
+        <input type="number" id="inFee" value="10" placeholder="Notar ₹">
+        <input type="text" id="inVol" value="V-1">
+        <input type="text" id="inPage" value="42">
+        <input type="text" id="inSerial" value="SN-1267">
+        <input type="text" id="inYear" value="2026">
+    </div>
+
+    <h3>🖼️ Signature & Seal (optional)</h3>
+    <div class="grid-2">
+        <div><label>Signature image</label><input type="file" id="uploadSign" accept="image/*"></div>
+        <div><label>Custom Seal image</label><input type="file" id="uploadSeal" accept="image/*"></div>
+    </div>
+
+    <h3>📜 History</h3>
+    <div id="historyList" class="history-list"></div>
+    <div class="grid-2" style="gap:6px;"><button class="btn-small" id="saveHistoryBtn">💾 Save current</button><button class="btn-small" id="resetSampleBtn">↺ Load sample</button></div>
+
+    <div class="scale-row"><label>Preview scale</label><input type="range" id="scaleRange" min="0.5" max="1.8" step="0.1" value="1.0"><span id="scaleValue">1.0x</span></div>
+    <div class="button-stack">
+        <button class="btn" onclick="refreshPreview()">⟳ Refresh preview</button>
+        <button class="btn-success" onclick="generatePDF()">📄 PDF</button>
+        <button class="btn-success" onclick="generatePNG(4)">🖼️ PNG 300 DPI</button>
+        <button class="btn-success" onclick="generatePNG(8)">✨ PNG 600 DPI</button>
+        <button class="btn-success" onclick="generatePNG(12)">💎 PNG 1200 DPI</button>
+        <button class="btn-outline" onclick="window.print()">🖨️ Print</button>
+    </div>
+    <div id="status-message" style="font-size:0.7rem; color:#2c5e2e; text-align:center;"></div>
+</div>
+
+<div id="preview-area">
+    <div class="preview-wrapper" id="previewWrapper">
+        <div class="certificate" id="cert">
+            <div class="microprint-overlay" id="microprintOverlay"></div>
+            <div class="inner-border">
+                <div class="cert-header-logo"><div class="cert-vgrt">⚖️ N R</div><div style="font-size:4pt;"></div></div>
+                <div class="header"><h1>NOTARIAL CERTIFICATE</h1><p></div>
+                <div class="section">BE IT KNOWN and made manifest (unto all people), befoe me <span class="field-label" id="outNotaryName">N RAJA</span>, Notary Public, Appointed by Govt. of India, in </span> Regn No. <span id="outRegNo">NOT/12345/2026</span> practicing in and throughout <span class="field-label" id="outPlace">CHENNAI </span>, Tamil Nadu, India duly authorised, admitted and sworn subject to the Provisions of Notay Act and Rules DO HEREBY CERTIFY:</div>
+                <div class="section" id="deponentsDisplay"></div>
+                <div class="section" id="idSummaryDisplay"></div>
+                <div class="section" id="witnessesDisplay"></div>
+                <div class="section">The contents were read over, explained and admitted; the deponent(s) signed in my presence.</div>
+                <table class="register-table"><tr><td>Stamp: ₹<span id="outStamp">100</span></td><td>Notary Stamp: ₹<span id="outFee">10</span></td><td>Year: <span id="outYear">2026</span></td></tr><tr><td>Volume: <span id="outVol">V-1</span></td><td>Page: <span id="outPage">42</span></td><td>Serial: <span id="outSerial">SN-1267</span></td></tr></table>
+                <div class="notary-details">
+                    <div id="qrcode-container"><div id="qrcode"></div><span>verify</span></div>
+                    <div class="signature-area"><div id="signatureDisplay"></div><strong>(Notary signature)</strong><br>Place: <span id="outPracticePlace">Chennai</span></div>
+                    <div class="seal-box" id="sealDisplay">OFFICIAL<br>SEAL</div>
+                </div>
+                <div style="text-align:center;"><strong>Dated:</strong> <span id="outDate"></span></div>
+                <div id="timestampContainer" style="text-align:center;"></div>
+                <div class="commission-expiry-row">Notary Commission valid until: <strong id="outExpiryLower"></strong> • Certificate ID: <span id="certId"></span> • <span id="genDate"></span></div>
+                <div id="microprintLineContainer" class="microprint-line"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ALL ORIGINAL DATA & FUNCTIONS PRESERVED
+    let deponents = [], witnesses = [], signatureImageData = null, customSealImageData = null, includeWitness = true, historyEntries = [];
+    let signaturePad = null;
+    const deponentsContainer = document.getElementById('deponentsContainer');
+    const witnessesContainer = document.getElementById('witnessesContainer');
+    const includeWitnessCheck = document.getElementById('includeWitness');
+    const witnessSectionDiv = document.getElementById('witnessSection');
+
+    // ---------- SIGNATURE PAD INITIALIZATION (FIXED) ----------
+    function initSignaturePad() {
+        const canvas = document.getElementById('signatureCanvas');
+        if (!canvas) return;
+        // Force fixed dimensions to avoid scaling issues
+        canvas.width = canvas.clientWidth;
+        canvas.height = 140;
+        signaturePad = new SignaturePad(canvas, {
+            backgroundColor: 'rgb(255,255,255)',
+            penColor: '#002664',
+            minWidth: 1,
+            maxWidth: 2.5
+        });
+        // Resize handler to maintain aspect
+        window.addEventListener('resize', () => {
+            const data = signaturePad.toData();
+            canvas.width = canvas.clientWidth;
+            canvas.height = 140;
+            signaturePad.clear();
+            if (data && data.length > 0) signaturePad.fromData(data);
+        });
+    }
+
+    function saveDrawnSignature() {
+        if (signaturePad && !signaturePad.isEmpty()) {
+            signatureImageData = signaturePad.toDataURL('image/png');
+            refreshPreview();
+            document.getElementById('status-message').innerText = '✓ Signature from pad saved to certificate.';
+        } else {
+            document.getElementById('status-message').innerText = 'Draw a signature first.';
+        }
+    }
+    function clearDrawnSignature() {
+        if (signaturePad) signaturePad.clear();
+        signatureImageData = null;
+        refreshPreview();
+        document.getElementById('status-message').innerText = 'Signature pad cleared.';
+    }
+
+    // Toggle functions
+    function toggleNotaryDetails() { document.getElementById('notaryDetailsContent').classList.toggle('show'); }
+    function toggleSealPanel() { document.getElementById('sealPanelContent').classList.toggle('show'); }
+    function toggleSecurityPanel() { document.getElementById('securityPanelContent').classList.toggle('show'); }
+    function toggleSigPad() { document.getElementById('sigPadContent').classList.toggle('show'); setTimeout(() => { if (signaturePad) { const canvas = document.getElementById('signatureCanvas'); canvas.width = canvas.clientWidth; canvas.height = 140; signaturePad.clear(); } }, 100); }
+
+    // Seal update
+    function updateSealStyleAndContent() {
+        const sealBox = document.getElementById('sealDisplay');
+        const theme = document.getElementById('sealTheme').value;
+        const rotate = document.getElementById('sealRotate').value;
+        const icon = document.getElementById('sealIcon').value;
+        const includeText = document.getElementById('sealIncludeText').checked;
+        document.getElementById('rotVal').innerText = rotate + '°';
+        sealBox.style.setProperty('--seal-rotate', rotate + 'deg');
+        sealBox.classList.remove('royal', 'modern', 'classic');
+        if (theme === 'royal') sealBox.classList.add('royal');
+        else if (theme === 'modern') sealBox.classList.add('modern');
+        else sealBox.classList.add('classic');
+        if (customSealImageData) {
+            sealBox.innerHTML = `<img src="${customSealImageData}" class="seal-image" style="max-width:100%; max-height:100%; border-radius:50%;">`;
+            return;
+        }
+        let innerHtml = '';
+        if (icon !== 'none') innerHtml += `<div style="font-size:24px;">${icon}</div>`;
+        if (includeText) {
+            const short = document.getElementById('inNotaryName').value.split(' ')[0];
+            const reg = document.getElementById('inRegNo').value;
+            innerHtml += `<div style="font-size:7pt; font-weight:bold;">${short}</div><div style="font-size:6pt;">${reg}</div>`;
+        } else innerHtml += `<div>NOTARY</div><div>PUBLIC</div>`;
+        sealBox.innerHTML = innerHtml;
+    }
+
+    function applyBorderStyle() {
+        const cert = document.getElementById('cert');
+        const val = document.querySelector('input[name="borderStyle"]:checked').value;
+        cert.classList.remove('outer-border-single', 'outer-border-double', 'outer-border-triple');
+        cert.classList.add(`outer-border-${val}`);
+    }
+
+    function applyMicroprint() {
+        const mode = document.getElementById('microprintStyle').value;
+        const overlay = document.getElementById('microprintOverlay');
+        const microLine = document.getElementById('microprintLineContainer');
+        const certDiv = document.getElementById('cert');
+        if (mode === 'none') {
+            overlay.style.background = 'none';
+            certDiv.classList.remove('microprint-active');
+            microLine.innerHTML = '';
+            return;
+        }
+        certDiv.classList.add('microprint-active');
+        overlay.style.background = mode === 'classic' ? "repeating-linear-gradient(45deg, rgba(0,38,100,0.08) 0px, rgba(0,38,100,0.08) 2px, transparent 2px, transparent 6px)" : "repeating-linear-gradient(135deg, rgba(180,148,80,0.12) 0px, rgba(180,148,80,0.12) 2px, transparent 2px, transparent 6px)";
+        const notary = document.getElementById('inNotaryName').value;
+        const reg = document.getElementById('inRegNo').value;
+        let depNames = deponents.map(d => d.name || 'Anonymous').join(', ');
+        if (depNames.length > 80) depNames = depNames.substring(0,77)+'...';
+        microLine.innerHTML = `🔍 MICROPRINT • NOTARY: ${notary} (${reg}) • DEPONENT(S): ${depNames} • CERTIFIED TRUE COPY • ANTI-FORGERY 🔍`;
+    }
+
+    function buildQRContent() {
+        const notary = document.getElementById('inNotaryName').value;
+        const reg = document.getElementById('inRegNo').value;
+        const place = document.getElementById('inPlace').value;
+        const doc = document.getElementById('inDoc').value;
+        const date = formatUnifiedDate(document.getElementById('inDate').value);
+        let depInfo = '';
+        deponents.forEach((d,i)=> depInfo += `Dep${i+1}:${d.name||'NA'}/${d.idType||'ID'}:${d.idNum||'NA'} `);
+        return `NOTARY:${notary}|REG:${reg}|PLACE:${place}|DOC:${doc}|DATE:${date}|DEPONENTS:${depInfo}|CERTID:${Date.now()}`.substring(0,300);
+    }
+
+    function formatUnifiedDate(ds) { if(!ds) return '________'; try{ return new Date(ds).toLocaleDateString('en-IN',{year:'numeric', month:'long', day:'numeric'}); }catch(e){return '________';} }
+    function formatExpiryDate(ds) { if(!ds) return '____'; try{ return new Date(ds).toLocaleDateString('en-IN',{day:'numeric', month:'short', year:'numeric'}); }catch(e){return '____';} }
+    function escapeHtml(s) { return (s||'').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
+
+    // Deponents render
+    function renderDeponents() {
+        deponentsContainer.innerHTML = '';
+        if(deponents.length===0) deponents.push({ name:'Mr./Ms. JOHN DOE', parentName:'Richard Doe', relation:'S/o', address:'123 Legal Street, New Delhi', idType:'Aadhaar Card', idNum:'1234-5678-9012' });
+        deponents.forEach((dep, idx) => {
+            const block = document.createElement('div'); block.className = 'person-block';
+            block.innerHTML = `<div><strong>Deponent #${idx+1}</strong> ${idx>0 ? `<button class="remove-btn" onclick="removeDeponent(${idx})">✖</button>` : ''}</div>
+            <div class="grid-2"><input type="text" class="dep-name" value="${escapeHtml(dep.name)}"><div style="display:flex; gap:5px;"><select class="dep-relation"><option ${dep.relation==='S/o'?'selected':''}>S/o</option><option ${dep.relation==='D/o'?'selected':''}>D/o</option></select><input type="text" class="dep-parent" value="${escapeHtml(dep.parentName)}"></div></div>
+            <input type="text" class="dep-address" value="${escapeHtml(dep.address)}"><div class="grid-2"><input type="text" class="dep-idtype" value="${escapeHtml(dep.idType)}"><input type="text" class="dep-idnum" value="${escapeHtml(dep.idNum)}"></div>`;
+            deponentsContainer.appendChild(block);
+        });
+        attachDepEvents();
+    }
+    function attachDepEvents() {
+        document.querySelectorAll('.person-block').forEach((block, idx) => {
+            if(deponents[idx]) {
+                block.querySelector('.dep-name')?.addEventListener('input', e => { deponents[idx].name = e.target.value; refreshPreview(); });
+                block.querySelector('.dep-relation')?.addEventListener('change', e => { deponents[idx].relation = e.target.value; refreshPreview(); });
+                block.querySelector('.dep-parent')?.addEventListener('input', e => { deponents[idx].parentName = e.target.value; refreshPreview(); });
+                block.querySelector('.dep-address')?.addEventListener('input', e => { deponents[idx].address = e.target.value; refreshPreview(); });
+                block.querySelector('.dep-idtype')?.addEventListener('input', e => { deponents[idx].idType = e.target.value; refreshPreview(); });
+                block.querySelector('.dep-idnum')?.addEventListener('input', e => { deponents[idx].idNum = e.target.value; refreshPreview(); });
+            }
+        });
+    }
+    window.removeDeponent = function(i) { deponents.splice(i,1); renderDeponents(); refreshPreview(); };
+    document.getElementById('addDeponentBtn').addEventListener('click', () => { deponents.push({ name:'', parentName:'', relation:'S/o', address:'', idType:'', idNum:'' }); renderDeponents(); refreshPreview(); });
+
+    function renderWitnesses() {
+        witnessesContainer.innerHTML = '';
+        if(includeWitness && witnesses.length===0) witnesses.push({ name:'Maya Sharma', address:'456 Justice Nagar' });
+        witnesses.forEach((wit, idx) => {
+            const block = document.createElement('div'); block.className = 'person-block';
+            block.innerHTML = `<div><strong>Witness #${idx+1}</strong> ${idx>0 ? `<button class="remove-btn" onclick="removeWitness(${idx})">✖</button>` : ''}</div>
+            <div class="grid-2"><input type="text" class="wit-name" value="${escapeHtml(wit.name)}"><input type="text" class="wit-addr" value="${escapeHtml(wit.address)}"></div>`;
+            witnessesContainer.appendChild(block);
+        });
+        document.querySelectorAll('#witnessesContainer .person-block').forEach((block, idx) => {
+            block.querySelector('.wit-name')?.addEventListener('input', e => { witnesses[idx].name = e.target.value; refreshPreview(); });
+            block.querySelector('.wit-addr')?.addEventListener('input', e => { witnesses[idx].address = e.target.value; refreshPreview(); });
+        });
+    }
+    window.removeWitness = function(i) { witnesses.splice(i,1); renderWitnesses(); refreshPreview(); };
+    document.getElementById('addWitnessBtn').addEventListener('click', () => { witnesses.push({ name:'', address:'' }); renderWitnesses(); refreshPreview(); });
+    includeWitnessCheck.addEventListener('change', (e) => { includeWitness = e.target.checked; witnessSectionDiv.style.display = includeWitness ? 'block' : 'none'; if(includeWitness && witnesses.length===0) witnesses.push({ name:'', address:'' }); renderWitnesses(); refreshPreview(); });
+
+    // History
+    function saveToHistory() {
+        const snap = { timestamp: Date.now(), notaryName: document.getElementById('inNotaryName').value, place: document.getElementById('inPlace').value, regNo: document.getElementById('inRegNo').value, expiry: document.getElementById('inExpiry').value, doc: document.getElementById('inDoc').value, date: document.getElementById('inDate').value, stamp: document.getElementById('inStamp').value, fee: document.getElementById('inFee').value, vol: document.getElementById('inVol').value, page: document.getElementById('inPage').value, serial: document.getElementById('inSerial').value, year: document.getElementById('inYear').value, deponents: JSON.parse(JSON.stringify(deponents)), witnesses: JSON.parse(JSON.stringify(witnesses)), includeWitness, refId: document.getElementById('inRefId').value };
+        historyEntries.unshift(snap);
+        if(historyEntries.length>8) historyEntries.pop();
+        renderHistoryList();
+        document.getElementById('status-message').innerText = '✓ Saved to history';
+    }
+    function renderHistoryList() {
+        const container = document.getElementById('historyList'); container.innerHTML = '';
+        if(historyEntries.length===0){ container.innerHTML='<div>No saved entries.</div>'; return; }
+        historyEntries.forEach((h,i)=>{ const div=document.createElement('div'); div.className='history-item'; div.innerHTML=`<div style="cursor:pointer;" onclick="restoreHistory(${i})">📜 ${new Date(h.timestamp).toLocaleTimeString()} · ${h.deponents?.length||0} dep.</div><button onclick="deleteHistory(${i})">❌</button>`; container.appendChild(div); });
+    }
+    window.restoreHistory = function(idx) {
+        const h = historyEntries[idx]; if(!h) return;
+        document.getElementById('inNotaryName').value = h.notaryName; document.getElementById('inPlace').value = h.place; document.getElementById('inRegNo').value = h.regNo; document.getElementById('inExpiry').value = h.expiry; document.getElementById('inDoc').value = h.doc; document.getElementById('inDate').value = h.date; document.getElementById('inStamp').value = h.stamp; document.getElementById('inFee').value = h.fee; document.getElementById('inVol').value = h.vol; document.getElementById('inPage').value = h.page; document.getElementById('inSerial').value = h.serial; document.getElementById('inYear').value = h.year; if(h.refId) document.getElementById('inRefId').value = h.refId;
+        deponents = h.deponents || []; witnesses = h.witnesses || []; includeWitness = h.includeWitness!==undefined?h.includeWitness:true; includeWitnessCheck.checked = includeWitness; witnessSectionDiv.style.display = includeWitness?'block':'none'; signatureImageData=null; customSealImageData=null; if(signaturePad) signaturePad.clear(); document.getElementById('uploadSign').value=''; document.getElementById('uploadSeal').value=''; renderDeponents(); renderWitnesses(); updateSealStyleAndContent(); refreshPreview(); document.getElementById('status-message').innerText = 'Restored from history.';
+    };
+    window.deleteHistory = function(idx) { historyEntries.splice(idx,1); renderHistoryList(); };
+    document.getElementById('saveHistoryBtn').addEventListener('click', saveToHistory);
+
+    // Main refresh
+    function refreshPreview() {
+        applyBorderStyle(); applyMicroprint(); updateSealStyleAndContent();
+        const notary = document.getElementById('inNotaryName').value, place = document.getElementById('inPlace').value, reg = document.getElementById('inRegNo').value;
+        document.getElementById('outNotaryName').innerText = notary;
+        document.getElementById('outPlace').innerText = place;
+        document.getElementById('outRegNo').innerText = reg;
+        document.getElementById('outExpiryLower').innerText = formatExpiryDate(document.getElementById('inExpiry').value);
+        document.getElementById('outStamp').innerText = document.getElementById('inStamp').value;
+        document.getElementById('outFee').innerText = document.getElementById('inFee').value;
+        document.getElementById('outVol').innerText = document.getElementById('inVol').value;
+        document.getElementById('outPage').innerText = document.getElementById('inPage').value;
+        document.getElementById('outSerial').innerText = document.getElementById('inSerial').value;
+        document.getElementById('outYear').innerText = document.getElementById('inYear').value;
+        document.getElementById('outPracticePlace').innerText = place.split(',')[0];
+        const unified = formatUnifiedDate(document.getElementById('inDate').value);
+        document.getElementById('outDate').innerHTML = unified;
+        let depHtml = '';
+        if(deponents.length===1){ const d=deponents[0]; depHtml = `That on this day : <strong>${d.name}</strong>, ${d.relation} ${d.parentName}, residing at ${d.address}, appeared before me and produced.`; }
+        else { depHtml = `That the following deponents appeared before me :<br>`; deponents.forEach(d=>{ depHtml+=`• <strong>${d.name}</strong>, ${d.relation} ${d.parentName}, ${d.address}<br>`; }); }
+        document.getElementById('deponentsDisplay').innerHTML = depHtml;
+        let idHtml = ''; deponents.forEach((d,i)=>{ idHtml+=`ID Proof ${i+1}: ${d.idType} — ${d.idNum}<br>`; }); idHtml+=`Executed Document: ${document.getElementById('inDoc').value}`;
+        document.getElementById('idSummaryDisplay').innerHTML = idHtml;
+        const witDiv = document.getElementById('witnessesDisplay');
+        if(includeWitness && witnesses.length && witnesses[0].name){ let witHtml = 'Witness(es): '; witnesses.forEach(w=>{ witHtml+=`<strong>${w.name}</strong> (${w.address}), `; }); witDiv.innerHTML = witHtml.slice(0,-2); witDiv.style.display='block'; } else witDiv.style.display='none';
+        document.getElementById('signatureDisplay').innerHTML = signatureImageData ? `<img src="${signatureImageData}" class="signature-image">` : '<div style="border-top:2px solid #002664; width:130px; margin:5px auto;"></div>';
+        const tsDiv = document.getElementById('timestampContainer');
+        if(document.getElementById('includeTimestamp').checked){ const now = new Date(); tsDiv.innerHTML = `<div class="timestamp-stamp">⏱️ ${now.toLocaleString()} · Token: ${Math.random().toString(36).substring(2,8).toUpperCase()}</div>`; } else tsDiv.innerHTML = '';
+        const qrData = buildQRContent(); const qrContainer = document.getElementById('qrcode'); qrContainer.innerHTML='';
+        try{ const qr = qrcode(0,'H'); qr.addData(qrData); qr.make(); const s=qr.getModuleCount()*3; const canv=document.createElement('canvas'); canv.width=s; canv.height=s; const ctx=canv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s); ctx.fillStyle='#000'; for(let r=0;r<qr.getModuleCount();r++)for(let c=0;c<qr.getModuleCount();c++)if(qr.isDark(r,c)) ctx.fillRect(c*3,r*3,3,3); qrContainer.appendChild(canv); }catch(e){ qrContainer.innerHTML='QR error'; }
+        document.getElementById('certId').innerText = 'NC-'+Math.random().toString(36).substring(2,10).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+        document.getElementById('genDate').innerText = new Date().toLocaleDateString('en-IN');
+    }
+
+    function generatePNG(qs){ setButtonsDisabled(true); const orig = document.getElementById('previewWrapper').style.transform; document.getElementById('previewWrapper').style.transform='none'; html2canvas(document.getElementById('cert'),{scale:qs,backgroundColor:'#fff',useCORS:true}).then(canvas=>{ const dpi=qs===4?'300dpi':qs===8?'600dpi':'1200dpi'; const link=document.createElement('a'); link.download=`notarial_${dpi}.png`; link.href=canvas.toDataURL('image/png'); link.click(); document.getElementById('previewWrapper').style.transform=orig; setButtonsDisabled(false); document.getElementById('status-message').innerText=`✅ PNG ${dpi} exported.`; }).catch(()=>{ setButtonsDisabled(false); document.getElementById('previewWrapper').style.transform=orig; }); }
+    function generatePDF(){ setButtonsDisabled(true); html2pdf().set({margin:0,filename:'Notarial_Certificate.pdf',image:{type:'jpeg',quality:1},html2canvas:{scale:5,backgroundColor:'#fff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(document.getElementById('cert')).save().then(()=>setButtonsDisabled(false)).catch(()=>setButtonsDisabled(false)); }
+    function setButtonsDisabled(d){ document.querySelectorAll('button').forEach(b=>b.disabled=d); }
+    function resetSample(){
+        document.getElementById('inNotaryName').value='N RAJA'; document.getElementById('inPlace').value='CHENNAI, TAMIL NADU, INDIA'; document.getElementById('inRegNo').value='11206'; document.getElementById('inExpiry').value='2029-12-31'; document.getElementById('inDoc').value='Affidavit for Name Change'; document.getElementById('inDate').value='2026-03-20'; document.getElementById('inStamp').value='100'; document.getElementById('inFee').value='10'; document.getElementById('inVol').value='V-1'; document.getElementById('inPage').value='42'; document.getElementById('inSerial').value='SN-1267'; document.getElementById('inYear').value='2026'; document.getElementById('inRefId').value='';
+        deponents = [{ name:'Mr./Ms. JOHN DOE', parentName:'Richard Doe', relation:'S/o', address:'123 Legal Street, New Delhi', idType:'Aadhaar Card', idNum:'1234-5678-9012' }];
+        witnesses = [{ name:'Maya Sharma', address:'456 Justice Nagar' }];
+        includeWitness = true; includeWitnessCheck.checked = true; witnessSectionDiv.style.display='block';
+        signatureImageData = null; customSealImageData = null; if(signaturePad) signaturePad.clear();
+        document.getElementById('uploadSign').value=''; document.getElementById('uploadSeal').value='';
+        renderDeponents(); renderWitnesses(); updateSealStyleAndContent(); refreshPreview();
+    }
+    document.getElementById('resetSampleBtn').addEventListener('click', resetSample);
+    document.getElementById('uploadSign').addEventListener('change', e=>{ if(e.target.files[0]){ const r=new FileReader(); r.onload=ev=>{ signatureImageData=ev.target.result; refreshPreview(); }; r.readAsDataURL(e.target.files[0]); } else { signatureImageData=null; refreshPreview(); } });
+    document.getElementById('uploadSeal').addEventListener('change', e=>{ if(e.target.files[0]){ const r=new FileReader(); r.onload=ev=>{ customSealImageData=ev.target.result; updateSealStyleAndContent(); refreshPreview(); }; r.readAsDataURL(e.target.files[0]); } else { customSealImageData=null; updateSealStyleAndContent(); refreshPreview(); } });
+    document.getElementById('microprintStyle').addEventListener('change',()=>refreshPreview()); document.getElementById('includeTimestamp').addEventListener('change',()=>refreshPreview()); document.getElementById('sealRotate').addEventListener('input',()=>{ updateSealStyleAndContent(); refreshPreview(); }); document.getElementById('sealTheme').addEventListener('change',()=>{ updateSealStyleAndContent(); refreshPreview(); }); document.getElementById('sealIcon').addEventListener('change',()=>{ updateSealStyleAndContent(); refreshPreview(); }); document.getElementById('sealIncludeText').addEventListener('change',()=>{ updateSealStyleAndContent(); refreshPreview(); });
+    document.getElementById('clearSigPadBtn').addEventListener('click', clearDrawnSignature);
+    document.getElementById('saveSigPadBtn').addEventListener('click', saveDrawnSignature);
+    const range = document.getElementById('scaleRange'), spanVal = document.getElementById('scaleValue'), wrapper = document.getElementById('previewWrapper');
+    range.addEventListener('input',()=>{ const v=range.value; spanVal.innerText=v+'x'; wrapper.style.transform=`scale(${v})`; });
+    window.onload = () => {
+        initSignaturePad();
+        document.getElementById('notaryDetailsContent').classList.remove('show');
+        document.getElementById('sealPanelContent').classList.remove('show');
+        document.getElementById('securityPanelContent').classList.remove('show');
+        document.getElementById('sigPadContent').classList.remove('show');
+        deponents = [{ name:'Mr./Ms. JOHN DOE', parentName:'Richard Doe', relation:'S/o', address:'123 Legal Street, New Delhi', idType:'Aadhaar Card', idNum:'1234-5678-9012' }];
+        witnesses = [{ name:'Maya Sharma', address:'456 Justice Nagar' }];
+        includeWitness=true; includeWitnessCheck.checked=true; witnessSectionDiv.style.display='block';
+        renderDeponents(); renderWitnesses(); if(!document.getElementById('inDate').value) document.getElementById('inDate').value=new Date().toISOString().slice(0,10);
+        applyBorderStyle(); updateSealStyleAndContent(); refreshPreview(); renderHistoryList();
+    };
+</script>
+</body>
+</html>
